@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { GeophysicalSurvey, GravityStation, ResistivitySounding, SeismicLine, api } from "@/lib/api";
 import GravityPanel from "@/components/GravityPanel";
@@ -22,7 +22,7 @@ export default function SurveyWorkspace({ params }: { params: { id: string } }) 
   const [rightTab, setRightTab] = useState<Tab>("gravity");
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const reload = useCallback(() => {
     Promise.all([
       api.getSurvey(surveyId),
       api.listGravityStations(surveyId),
@@ -34,9 +34,14 @@ export default function SurveyWorkspace({ params }: { params: { id: string } }) 
         setGravityStations(g);
         setSoundings(r);
         setSeismicLines(l);
+        setLoadError(null);
       })
       .catch((err) => setLoadError(String(err)));
   }, [surveyId]);
+
+  useEffect(() => {
+    reload();
+  }, [reload]);
 
   return (
     <main style={{ display: "grid", gridTemplateColumns: "1fr 460px", gridTemplateRows: "auto 1fr", height: "100vh" }}>
@@ -74,10 +79,10 @@ export default function SurveyWorkspace({ params }: { params: { id: string } }) 
           <TabButton active={rightTab === "chat"} onClick={() => setRightTab("chat")} label="Chat" />
         </div>
         <div style={{ flex: 1, overflowY: "auto" }}>
-          {rightTab === "gravity" && <GravityPanel stations={gravityStations} />}
+          {rightTab === "gravity" && <GravityPanel surveyId={surveyId} stations={gravityStations} onChanged={reload} />}
           {rightTab === "magnetic" && <MagneticPanel />}
-          {rightTab === "resistivity" && <ResistivityPanel soundings={soundings} />}
-          {rightTab === "seismic" && <SeismicPanel lines={seismicLines} />}
+          {rightTab === "resistivity" && <ResistivityPanel surveyId={surveyId} soundings={soundings} onChanged={reload} />}
+          {rightTab === "seismic" && <SeismicPanel surveyId={surveyId} lines={seismicLines} onChanged={reload} />}
           {rightTab === "chat" && (
             <div style={{ height: "100%" }}>
               <ChatPanel surveyId={surveyId} />

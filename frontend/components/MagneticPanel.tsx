@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { MagneticRtpResult, api } from "@/lib/api";
 
@@ -8,7 +8,8 @@ import { MagneticRtpResult, api } from "@/lib/api";
 // enterrada, OBSERVADA sob um campo ambiente inclinado (I=30°, D=20°) —
 // visivelmente deslocada/assimétrica em relação ao centro geométrico da
 // grade (a fonte real está no centro, célula [8,8]). Gerada com a mesma
-// metodologia usada em `tests/test_magnetic_rtp.py` do backend.
+// metodologia usada em `tests/test_magnetic_rtp.py` do backend. Serve como
+// demonstração; use "Minha grade" para analisar dados reais.
 const EXAMPLE_PIXEL_SIZE_M = 50;
 const EXAMPLE_TRUE_INCLINATION_DEG = 30;
 const EXAMPLE_TRUE_DECLINATION_DEG = 20;
@@ -41,41 +42,57 @@ function colorFor(value: number, maxAbs: number): string {
   return `rgb(80,${120 + Math.round(t * 60)},${b})`;
 }
 
-function Heatmap({ grid, highlight }: { grid: number[][]; highlight?: [number, number] }) {
+function Heatmap({ grid }: { grid: number[][] }) {
   const maxAbs = Math.max(...grid.flat().map((v) => Math.abs(v)), 1);
-  const cell = 14;
+  const cell = Math.max(4, Math.min(14, Math.floor(200 / Math.max(grid.length, grid[0]?.length ?? 1))));
   return (
-    <svg width={grid[0].length * cell} height={grid.length * cell}>
+    <svg width={(grid[0]?.length ?? 0) * cell} height={grid.length * cell}>
       {grid.map((row, r) =>
-        row.map((v, c) => (
-          <rect
-            key={`${r}-${c}`}
-            x={c * cell}
-            y={r * cell}
-            width={cell}
-            height={cell}
-            fill={colorFor(v, maxAbs)}
-            stroke={highlight && highlight[0] === r && highlight[1] === c ? "#fff" : "none"}
-            strokeWidth={highlight && highlight[0] === r && highlight[1] === c ? 2 : 0}
-          />
-        ))
+        row.map((v, c) => <rect key={`${r}-${c}`} x={c * cell} y={r * cell} width={cell} height={cell} fill={colorFor(v, maxAbs)} />)
       )}
     </svg>
   );
 }
 
+function parseGridText(text: string): number[][] | null {
+  const rows = text
+    .split("\n")
+    .map((row) => row.trim())
+    .filter((row) => row.length > 0)
+    .map((row) => row.split(",").map((v) => Number(v.trim())));
+  if (rows.length === 0) return null;
+  const width = rows[0].length;
+  const valid = rows.every((row) => row.length === width && row.every((v) => !Number.isNaN(v)));
+  return valid ? rows : null;
+}
+
 export default function MagneticPanel() {
+  const [mode, setMode] = useState<"example" | "custom">("example");
+  const [customGridText, setCustomGridText] = useState("");
+  const [pixelSize, setPixelSize] = useState(EXAMPLE_PIXEL_SIZE_M);
   const [inclination, setInclination] = useState(EXAMPLE_TRUE_INCLINATION_DEG);
   const [declination, setDeclination] = useState(EXAMPLE_TRUE_DECLINATION_DEG);
   const [result, setResult] = useState<MagneticRtpResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const activeGrid = mode === "example" ? EXAMPLE_GRID : parseGridText(customGridText);
+
+  const handleFile = async (file: File) => {
+    const text = await file.text();
+    setCustomGridText(text.trim());
+  };
 
   const run = () => {
+    if (!activeGrid) {
+      setError("Grade inválida — confira se todas as linhas têm o mesmo número de valores separados por vírgula.");
+      return;
+    }
     setLoading(true);
     setError(null);
     api
-      .calculateMagneticRtp(EXAMPLE_GRID, EXAMPLE_PIXEL_SIZE_M, inclination, declination)
+      .calculateMagneticRtp(activeGrid, pixelSize, inclination, declination)
       .then(setResult)
       .catch((err) => setError(String(err)))
       .finally(() => setLoading(false));
@@ -85,48 +102,69 @@ export default function MagneticPanel() {
     <div style={{ padding: "1rem", display: "flex", flexDirection: "column", gap: "1rem" }}>
       <section>
         <h3 style={{ fontSize: ".85rem", margin: "0 0 .5rem", color: "var(--ink-muted)" }}>Redução ao polo (RTP)</h3>
-        <p style={{ fontSize: ".72rem", color: "var(--ink-muted)", margin: "0 0 .6rem", lineHeight: 1.4 }}>
-          Grade de exemplo: anomalia de uma fonte pontual sob a célula central (linha 8, coluna 8), observada sob
-          campo inclinado (I={EXAMPLE_TRUE_INCLINATION_DEG}°, D={EXAMPLE_TRUE_DECLINATION_DEG}°) — note a assimetria
-          antes da correção.
-        </p>
 
-        <div style={{ display: "flex", gap: "1rem" }}>
-          <div>
-            <p style={{ fontSize: ".7rem", color: "var(--ink-muted)", margin: "0 0 .3rem" }}>observada (assimétrica)</p>
-            <Heatmap grid={EXAMPLE_GRID} />
-          </div>
-          {result && (
-            <div>
-              <p style={{ fontSize: ".7rem", color: "var(--ink-muted)", margin: "0 0 .3rem" }}>
-                pico RTP em [{result.peak_row},{result.peak_col}]
-              </p>
-              <div
-                style={{
-                  width: 16 * 14,
-                  height: 16 * 14,
-                  border: "1px solid var(--border)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: ".7rem",
-                  color: "var(--ink-muted)",
-                  textAlign: "center",
-                  padding: "0.5rem",
-                }}
-              >
-                grade RTP completa não é retornada pela API (resumo apenas) — pico/vale reportados ao lado
-              </div>
-            </div>
-          )}
+        <div style={{ display: "flex", gap: "0", marginBottom: ".7rem", border: "1px solid var(--border)", borderRadius: 6, overflow: "hidden", width: "fit-content" }}>
+          <button onClick={() => setMode("example")} style={modeBtn(mode === "example")}>
+            Grade de exemplo
+          </button>
+          <button onClick={() => setMode("custom")} style={modeBtn(mode === "custom")}>
+            Minha grade
+          </button>
         </div>
 
-        <div style={{ display: "flex", gap: ".6rem", marginTop: ".8rem", alignItems: "flex-end" }}>
-          <label style={{ fontSize: ".75rem", color: "var(--ink-muted)", display: "flex", flexDirection: "column", gap: ".2rem" }}>
+        {mode === "example" && (
+          <p style={{ fontSize: ".72rem", color: "var(--ink-muted)", margin: "0 0 .6rem", lineHeight: 1.4 }}>
+            Grade sintética de demonstração: anomalia de uma fonte pontual sob a célula central (linha 8, coluna 8),
+            observada sob campo inclinado (I={EXAMPLE_TRUE_INCLINATION_DEG}°, D={EXAMPLE_TRUE_DECLINATION_DEG}°).
+            Com a inclinação/declinação corretas, o pico RTP deve cair em [8, 8].
+          </p>
+        )}
+
+        {mode === "custom" && (
+          <div style={addBox}>
+            <p style={{ fontSize: ".72rem", color: "var(--ink-muted)", margin: "0 0 .4rem" }}>
+              Cole ou importe sua grade de valores de campo magnético (nT), uma linha da grade por linha de texto,
+              valores separados por vírgula — todas as linhas com o mesmo número de colunas.
+            </p>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv,.txt"
+              onChange={(e) => e.target.files && e.target.files[0] && handleFile(e.target.files[0])}
+              style={{ fontSize: ".78rem", color: "var(--ink-muted)", marginBottom: ".5rem" }}
+            />
+            <textarea
+              value={customGridText}
+              onChange={(e) => setCustomGridText(e.target.value)}
+              rows={6}
+              placeholder={"12.3,14.1,...\n15.0,18.2,...\n..."}
+              style={{ width: "100%", padding: ".5rem", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 6, color: "var(--ink)", fontFamily: "monospace", fontSize: ".76rem" }}
+            />
+            {customGridText && !activeGrid && (
+              <p style={{ fontSize: ".76rem", color: "var(--bad)", margin: ".4rem 0 0" }}>
+                Grade inválida — confira se todas as linhas têm o mesmo número de valores numéricos.
+              </p>
+            )}
+          </div>
+        )}
+
+        {activeGrid && (
+          <div style={{ marginTop: ".8rem" }}>
+            <p style={{ fontSize: ".7rem", color: "var(--ink-muted)", margin: "0 0 .3rem" }}>grade observada ({activeGrid.length}×{activeGrid[0]?.length ?? 0})</p>
+            <Heatmap grid={activeGrid} />
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: ".6rem", marginTop: ".8rem", alignItems: "flex-end", flexWrap: "wrap" }}>
+          <label style={fieldLabel}>
+            tamanho do pixel (m)
+            <input type="number" value={pixelSize} onChange={(e) => setPixelSize(Number(e.target.value))} style={numStyle} />
+          </label>
+          <label style={fieldLabel}>
             inclinação (°)
             <input type="number" value={inclination} onChange={(e) => setInclination(Number(e.target.value))} style={numStyle} />
           </label>
-          <label style={{ fontSize: ".75rem", color: "var(--ink-muted)", display: "flex", flexDirection: "column", gap: ".2rem" }}>
+          <label style={fieldLabel}>
             declinação (°)
             <input type="number" value={declination} onChange={(e) => setDeclination(Number(e.target.value))} style={numStyle} />
           </label>
@@ -150,16 +188,32 @@ export default function MagneticPanel() {
               </p>
             )}
             <p style={{ fontSize: ".72rem", color: "var(--ink-muted)", marginTop: ".5rem", lineHeight: 1.5 }}>{result.limitations}</p>
-            <p style={{ fontSize: ".7rem", color: "var(--ink-muted)", marginTop: ".3rem" }}>
-              Com inclinação/declinação corretas ({EXAMPLE_TRUE_INCLINATION_DEG}°/{EXAMPLE_TRUE_DECLINATION_DEG}°), o pico
-              deve cair em [8, 8] — o centro exato da fonte verdadeira.
-            </p>
           </>
         )}
       </section>
     </div>
   );
 }
+
+function modeBtn(active: boolean): CSSProperties {
+  return {
+    padding: ".45rem .8rem",
+    background: active ? "var(--surface-2)" : "transparent",
+    border: "none",
+    color: active ? "var(--ink)" : "var(--ink-muted)",
+    fontSize: ".76rem",
+    fontWeight: 600,
+    cursor: "pointer",
+  };
+}
+
+const fieldLabel: CSSProperties = {
+  fontSize: ".75rem",
+  color: "var(--ink-muted)",
+  display: "flex",
+  flexDirection: "column",
+  gap: ".2rem",
+};
 
 const numStyle: CSSProperties = {
   padding: ".35rem .5rem",
@@ -178,6 +232,14 @@ const btnStyle: CSSProperties = {
   color: "#fff",
   fontSize: ".8rem",
   fontWeight: 600,
+};
+
+const addBox: CSSProperties = {
+  padding: ".8rem",
+  background: "var(--surface-2)",
+  border: "1px solid var(--border)",
+  borderRadius: 8,
+  marginBottom: ".6rem",
 };
 
 function Tile({ label, value }: { label: string; value: string }) {

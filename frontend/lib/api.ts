@@ -159,6 +159,17 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+// Upload multipart (CSV) — sem header Content-Type manual: o browser define o
+// boundary automaticamente ao enviar um FormData.
+async function requestForm<T>(path: string, formData: FormData): Promise<T> {
+  const res = await fetch(`${API_URL}${path}`, { method: "POST", body: formData });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`${res.status} ${res.statusText}: ${body}`);
+  }
+  return res.json() as Promise<T>;
+}
+
 export const api = {
   listSurveys: () => request<GeophysicalSurvey[]>("/api/v1/surveys"),
 
@@ -172,12 +183,60 @@ export const api = {
 
   listGravityStations: (surveyId: string) => request<GravityStation[]>(`/api/v1/surveys/${surveyId}/gravity-stations`),
 
+  createGravityStation: (
+    surveyId: string,
+    payload: { code: string; lon: number; lat: number; latitude_deg: number; elevation_m: number; observed_gravity_mgal: number }
+  ) =>
+    request<{ id: string; code: string }>(`/api/v1/surveys/${surveyId}/gravity-stations`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  importGravityStationsCsv: (surveyId: string, file: File) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    return requestForm<{ survey_id: string; n_stations_created: number }>(
+      `/api/v1/surveys/${surveyId}/gravity-stations/import`,
+      fd
+    );
+  },
+
   listResistivitySoundings: (surveyId: string) =>
     request<ResistivitySounding[]>(`/api/v1/surveys/${surveyId}/resistivity-soundings`),
 
+  createResistivitySounding: (surveyId: string, payload: { code: string; lon: number; lat: number; array_type: string }) =>
+    request<{ id: string; code: string; array_type: string }>(`/api/v1/surveys/${surveyId}/resistivity-soundings`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  importResistivityReadingsCsv: (soundingId: string, file: File) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    return requestForm<{ sounding_id: string; n_readings_created: number }>(
+      `/api/v1/resistivity-soundings/${soundingId}/readings/import`,
+      fd
+    );
+  },
+
   listSeismicLines: (surveyId: string) => request<SeismicLine[]>(`/api/v1/surveys/${surveyId}/seismic-lines`),
 
+  createSeismicLine: (surveyId: string, payload: { code: string; coordinates: number[][] }) =>
+    request<{ id: string; code: string }>(`/api/v1/surveys/${surveyId}/seismic-lines`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
   listSeismicReadings: (lineId: string) => request<SeismicReading[]>(`/api/v1/seismic-lines/${lineId}/readings`),
+
+  importSeismicReadingsCsv: (lineId: string, file: File) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    return requestForm<{ line_id: string; n_readings_created: number }>(
+      `/api/v1/seismic-lines/${lineId}/readings/import`,
+      fd
+    );
+  },
 
   calculateBouguerAnomaly: (stationId: string, densityKgM3 = 2670.0) =>
     request<BouguerAnomalyResult>("/api/v1/analysis/bouguer-anomaly", {
