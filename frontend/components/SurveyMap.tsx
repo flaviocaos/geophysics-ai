@@ -11,28 +11,27 @@ interface SurveyMapProps {
   seismicLines: SeismicLine[];
 }
 
-// Basemap real (ruas/satélite por baixo dos pontos) em vez de fundo preto
-// sólido — tiles gratuitos da CARTO (estilo escuro, combina com o tema da
-// aplicação), sem necessidade de chave de API. `glyphs` também é
-// necessário para os rótulos de texto (código da estação etc.) renderizarem
-// no mapa — sem isso o MapLibre reporta erro no console e não desenha texto.
+// Basemap real (imagem de satélite por baixo dos pontos) em vez de fundo
+// preto sólido — tiles gratuitos de satélite da Esri (World Imagery),
+// servidos publicamente sem necessidade de chave de API/cadastro. Faz mais
+// sentido que um mapa de ruas para um app de geofísica: mostra o terreno
+// real onde os dados de campo foram coletados. `glyphs` também é necessário
+// para os rótulos de texto (código da estação etc.) renderizarem no mapa —
+// sem isso o MapLibre reporta erro no console e não desenha texto.
 const BASE_STYLE: maplibregl.StyleSpecification = {
   version: 8,
   sources: {
-    "carto-dark": {
+    "esri-satellite": {
       type: "raster",
       tiles: [
-        "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-        "https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-        "https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-        "https://d.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
       ],
       tileSize: 256,
-      attribution: "© OpenStreetMap contributors © CARTO",
+      attribution: "Esri, Maxar, Earthstar Geographics",
     },
   },
   glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
-  layers: [{ id: "carto-dark-layer", type: "raster", source: "carto-dark" }],
+  layers: [{ id: "esri-satellite-layer", type: "raster", source: "esri-satellite" }],
 };
 
 export default function SurveyMap({ gravityStations, soundings, seismicLines }: SurveyMapProps) {
