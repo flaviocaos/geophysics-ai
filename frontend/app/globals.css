@@ -1,0 +1,58 @@
+:root {
+  --bg: #0b1420;
+  --surface: #121f30;
+  --surface-2: #182a40;
+  --border: #274059;
+  --ink: #e8f1fb;
+  --ink-muted: #8ba4bf;
+  --accent: #3f7fd9;
+  --sat: #d9a441;
+  --warn: #d9a441;
+  --bad: #d1594f;
+  --good: #4f9c7c;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
+}
+
+a {
+  color: var(--accent);
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.82rem;
+}
+
+.maplibregl-map {
+  font-family: inherit;
+}
