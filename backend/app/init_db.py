@@ -1,9 +1,15 @@
-"""Bootstrap do banco para o MVP: habilita PostGIS, cria as tabelas e garante
+"""Bootstrap do banco para o MVP: habilita PostGIS, cria as tabelas, garante
 a organização/usuário de desenvolvimento usados como dono padrão de todo
 registro criado nesta fase do MVP (ver TODO em `routers/surveys.py`:
-substituídos por organização/usuário autenticados via JWT na Fase 6). Sem
-essas duas linhas, qualquer criação de levantamento falha com violação de
-chave estrangeira (`org_id`/`created_by` apontando para linhas inexistentes).
+substituídos por organização/usuário autenticados via JWT na Fase 6) e
+corrige a coluna `analysis_results.survey_id` para aceitar NULL (necessário
+para os resultados de magnetic-rtp/anomaly-detection, que não são presos a
+um levantamento — ver comentário em `models/analysis.py`).
+
+`Base.metadata.create_all()` só cria tabelas que ainda não existem — não
+altera colunas de uma tabela já criada em um deploy anterior. Por isso o
+ALTER TABLE abaixo roda sempre, de forma idempotente (não dá erro se a
+coluna já estiver nullable).
 
 Uso: `python -m app.init_db`
 Em produção (Fase 6), substituído por migrações versionadas com Alembic.
@@ -23,6 +29,9 @@ def main() -> None:
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS postgis"))
 
     Base.metadata.create_all(bind=engine)
+
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE analysis_results ALTER COLUMN survey_id DROP NOT NULL"))
 
     with engine.begin() as conn:
         conn.execute(
@@ -50,7 +59,8 @@ def main() -> None:
 
     print(
         "Banco inicializado: extensao PostGIS habilitada, tabelas criadas, "
-        "organizacao/usuario de desenvolvimento garantidos."
+        "organizacao/usuario de desenvolvimento garantidos, "
+        "analysis_results.survey_id tornado nullable."
     )
 
 

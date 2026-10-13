@@ -22,7 +22,11 @@ class AnalysisResult(Base):
     __tablename__ = "analysis_results"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    survey_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("geophysical_surveys.id"))
+    # Nullable: magnetic-rtp e anomaly-detection sao analises "sem estado"
+    # (grade enviada direto na requisicao, nao presa a um levantamento) —
+    # routers/analysis.py chama _persist_result(db, None, ...) para esses
+    # dois tipos, entao a coluna NAO pode ser NOT NULL.
+    survey_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("geophysical_surveys.id"))
     result_type: Mapped[AnalysisResultType] = mapped_column(Enum(AnalysisResultType))
     entity_ids: Mapped[list[str]] = mapped_column(ARRAY(String), default=list)
     params: Mapped[dict] = mapped_column(JSON, default=dict)
