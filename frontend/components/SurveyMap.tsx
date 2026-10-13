@@ -11,10 +11,28 @@ interface SurveyMapProps {
   seismicLines: SeismicLine[];
 }
 
+// Basemap real (ruas/satélite por baixo dos pontos) em vez de fundo preto
+// sólido — tiles gratuitos da CARTO (estilo escuro, combina com o tema da
+// aplicação), sem necessidade de chave de API. `glyphs` também é
+// necessário para os rótulos de texto (código da estação etc.) renderizarem
+// no mapa — sem isso o MapLibre reporta erro no console e não desenha texto.
 const BASE_STYLE: maplibregl.StyleSpecification = {
   version: 8,
-  sources: {},
-  layers: [{ id: "background", type: "background", paint: { "background-color": "#0b1420" } }],
+  sources: {
+    "carto-dark": {
+      type: "raster",
+      tiles: [
+        "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+        "https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+        "https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+        "https://d.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+      ],
+      tileSize: 256,
+      attribution: "© OpenStreetMap contributors © CARTO",
+    },
+  },
+  glyphs: "https://demotiles.maplibre.org/font/{fontstack}/{range}.pbf",
+  layers: [{ id: "carto-dark-layer", type: "raster", source: "carto-dark" }],
 };
 
 export default function SurveyMap({ gravityStations, soundings, seismicLines }: SurveyMapProps) {
